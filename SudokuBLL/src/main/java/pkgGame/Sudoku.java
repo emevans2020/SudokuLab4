@@ -2,6 +2,11 @@ package pkgGame;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Objects;
 import java.util.Random;
 
 import pkgHelper.LatinSquare;
@@ -35,7 +40,8 @@ public class Sudoku extends LatinSquare {
 	 */
 
 	private int iSqrtSize;
-
+	
+	private HashMap<Integer, Cell> cells = new HashMap <Integer, Cell>();
 	/**
 	 * Sudoku - for Lab #2... do the following:
 	 * 
@@ -199,7 +205,7 @@ public class Sudoku extends LatinSquare {
 	 * 
 	 * It's a LatinSquare If each region doesn't have duplicates If each element in
 	 * the first row of the puzzle is in each region of the puzzle At least one of
-	 * the elemnts is a zero
+	 * the elements is a zero
 	 * 
 	 * 
 	 * @version 1.2
@@ -268,7 +274,7 @@ public class Sudoku extends LatinSquare {
 	 *            given value
 	 * @return - returns 'true' if the proposed value is valid for the row and column
 	 */
-	public boolean isValidValue(int iRow,int iCol,  int iValue) {
+	public boolean isValidValue(int iRow, int iCol,  int iValue) {
 		
 		if (doesElementExist(super.getRow(iRow),iValue))
 		{
@@ -411,7 +417,8 @@ public class Sudoku extends LatinSquare {
 			ar[i] = a;
 		}
 	}
-	// can access Cell class as attribute
+	
+	// is a private class so that can access Cell class as attribute
 	private class Cell {
 		private int iRow;
 		private int iCol;
@@ -431,5 +438,136 @@ public class Sudoku extends LatinSquare {
 			return iCol;
 		}
 		
+		//overrides hashCode in class java.lang.Object
+		@Override
+		public int hashCode () {
+			return Objects.hash(iRow, iCol);
+		}
+		
+		
+		//override to ensure object is equal by Row/Col
+		@Override 
+		public boolean equals (Object o) {
+			if (o == this) {
+				return true;
+			}
+			
+			if (!(o instanceof Cell)) {
+				return false;
+			}
+			
+			Cell c = (Cell) o;
+			return iCol == c.iCol && iRow == c.iRow;
+		}
+		
+		public ArrayList <Integer> getLstValidValues() {
+			return lstValidValues;
+		}
+		
+		public void setlstValidValues (HashSet<Integer> hsValidValues) {
+			lstValidValues = new ArrayList<Integer>(hsValidValues);
+		}
+		
+		public void ShuffleValidValues() {
+			Collections.shuffle(lstValidValues);
+		}
+		
+		//get the next cell, return 'null' if there isn't a next cell to find
+		public Cell GetNextCell(Cell c) {
+			int iCol = c.getiCol() +1;
+			int iRow = c.getiRow();
+			int iSqrtSize = (int) Math.sqrt (iSize);
+			
+			if (iCol >= iSize && iRow < iSize -1) {
+				iRow = iRow + 1;
+				iCol = 0;
+			}
+			
+			if (iRow >= iSize && iCol >= iSize)
+				return null;
+			
+			if (iRow < iSqrtSize) {
+				if (iCol < iSqrtSize)
+					iCol = iSqrtSize;
+			}
+			
+			else if (iRow < iSize - iSqrtSize) {
+				if (iCol == (int)(iRow/iSqrtSize) * iSqrtSize)
+					iCol = iCol + iSqrtSize;
+			}
+			
+			else {
+				if (iCol == iSize - iSqrtSize) {
+					iRow = iRow + 1;
+					iCol = 0;
+					if (iRow >= iSize)
+						return null;
+				}
+			}
+			return (Cell)cells.get(Objects.hash(iRow, iCol));
+		}
+
 	}
+	
+	/** method will determine all the values the cell could be, 
+	 * assuming there are already set values in the row, column 
+	 * and region
+	 */
+	
+	private HashSet<Integer> getAllValidCellValues (int iCol, int iRow) {
+		HashSet <Integer> hsCellRange = new HashSet <Integer>();
+		for (int i = 0; i < iSize; i++) {
+			hsCellRange.add (i +1);
+		}
+		
+		HashSet <Integer> hsUsedValues = new HashSet <Integer>();
+		Collections.addAll(hsUsedValues, Arrays.stream(super.getRow(iRow)).boxed().toArray(Integer[]::new));
+		Collections.addAll(hsUsedValues, Arrays.stream(super.getColumn(iCol)).boxed().toArray(Integer[]::new));
+		Collections.addAll(hsUsedValues, Arrays.stream(this.getRegion(iCol, iRow)).boxed().toArray(Integer[]::new));
+		
+		hsCellRange.removeAll(hsUsedValues);
+		return hsCellRange;
+	}
+	
+	public boolean isValidValue(Cell c, int iValue) {
+		return this.isValidValue(c.getiRow(), c.getiCol(), iValue);
+	}
+
+	
+	/** build the HashMap, one entry for each cell in the puzzle, determine
+	 *  and shuffle the valid values for the given cell
+	 */
+	private void SetCells() {
+		for (int iRow = 0; iRow < iSize; iRow++) {
+			for (int iCol = 0; iCol < iSize; iCol ++) {
+				Cell c = new Cell (iRow, iCol);
+				c.setlstValidValues(getAllValidCellValues (iCol, iRow));
+				c.ShuffleValidValues();
+				cells.put (c.hashCode(),c);
+			}
+		}
+	}
+	
+	/** Recursive method to fill each cell... one by one... 
+	 * backtracking if the given value doesn't fit in the cell.
+	 * @param c
+	 * @return
+	 */
+	private boolean fillRemaining (Cell c) {
+		if (c == null) {
+			return true;
+		}
+		
+		for (int num: c.getLstValidValues()) {
+			if (isValidValue(c, num)) {
+				this.getPuzzle()[c.getiRow()][c.getiCol()] = num;
+				
+				if (fillRemaining(c.GetNextCell(c)))
+					return true;
+				this.getPuzzle() [c.getiRow()][c.getiCol()] = 0;
+			}
+		}
+		return false;
+	}
+	
 }
